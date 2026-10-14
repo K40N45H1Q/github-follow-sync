@@ -1,0 +1,35 @@
+name: Follow-back sync
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: github-follow-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Synchronize and persist
+        env:
+          GH_FOLLOW_TOKEN: ${{ secrets.GH_FOLLOW_TOKEN }}
+        run: |
+          cargo run --release || result=$?
+          if ! git diff --quiet -- state.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state.json
+            git commit -m "chore: update follow state"
+            git push
+          fi
+          exit ${result:-0}
